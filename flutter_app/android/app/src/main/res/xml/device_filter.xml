@@ -5,4 +5,5 @@
 
     <!-- Fallback: match any UVC video class device (class=14, subclass=1) -->
     <usb-device class="239" subclass="2" protocol="1" />
+    <usb-device class="14" subclass="1" />
 </resources>

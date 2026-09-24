@@ -85,8 +85,17 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
         if (state == UVCCameraState.opened) {
           setState(() { _uvcReady = true; _statusMessage = null; });
           _startCaptureTimer();
+        } else if (state == UVCCameraState.error) {
+          final error = controller.getCameraErrorMsg;
+          _fallbackToPcServer(
+              error.isEmpty ? 'UVC camera failed to open' : 'UVC: $error');
         } else if (state == UVCCameraState.closed) {
-          setState(() { _uvcReady = false; _statusMessage = 'USB camera disconnected'; });
+          if (_uvcReady) {
+            setState(() {
+              _uvcReady = false;
+              _statusMessage = 'USB camera disconnected';
+            });
+          }
           _captureTimer?.cancel();
         }
       };

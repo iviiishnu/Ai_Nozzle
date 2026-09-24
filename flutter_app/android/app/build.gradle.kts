@@ -22,7 +22,9 @@ android {
         applicationId = "com.example.flutter_app"
         // tflite_flutter requires minSdk 26 (Android 8.0)
         minSdk = 26
-        targetSdk = flutter.targetSdkVersion
+        // flutter_uvc_camera checks legacy storage permission during startup.
+        // Its Android implementation requires the legacy target behavior.
+        targetSdk = 27
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

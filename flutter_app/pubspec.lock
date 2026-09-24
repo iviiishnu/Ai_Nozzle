@@ -203,6 +203,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_uvc_camera:
+    dependency: "direct main"
+    description:
+      name: flutter_uvc_camera
+      sha256: "52f68dcdd0ec903330ec9a545820b0fa5daf0342414343ab87596aa96e68b4d5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   flutter_web_plugins:
     dependency: transitive
     description: flutter

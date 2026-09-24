@@ -20,6 +20,7 @@ dependencies:
   # 0.12.1 is the first version with the fix + LiteRT 1.4.0 + 16KB page support.
   tflite_flutter: ^0.12.1
   image: ^4.0.4
+  flutter_uvc_camera: ^1.0.0
 
 dev_dependencies:
   flutter_test:

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lenovo FHD Webcam (VID: 0x17ef = 6127, PID: 0x4831 = 18481) -->
+    <usb-device vendor-id="6127" product-id="18481" />
+
+    <!-- Fallback: match any UVC video class device (class=14, subclass=1) -->
+    <usb-device class="239" subclass="2" protocol="1" />
+</resources>

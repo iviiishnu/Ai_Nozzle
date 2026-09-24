@@ -9,9 +9,10 @@
 #   - Leaf detection uses improved HSV (green + yellow-brown)
 #   - TTA-based prediction (5 variants averaged)
 #   - Confidence threshold → returns "Uncertain" instead of wrong prediction
-#   - Fixed damage_percent formula (entropy-based)
+#   - damage_percent = share of leaf tissue that is not green (pixel-based)
 #   - /health endpoint for Spring Boot to check liveness
-#   - debug=False (set FLASK_DEBUG=true in env for dev)
+#   - Waitress in production (set FLASK_DEBUG=true for the dev server)
+#   - All settings via environment / .env (see .env.example)
 #   - Request size limit (10MB)
 # """
 
@@ -21,14 +22,20 @@ import uuid
 import logging
 
 import cv2
-import numpy as np
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
+
+# Load settings from ai_service/.env if present (see .env.example)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+except ImportError:
+    pass
 
 # ─────────────────────────────────────────────
 # PATHS
 # ─────────────────────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR  = os.path.join(BASE_DIR, "uploads")
+UPLOAD_DIR  = os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ─────────────────────────────────────────────
@@ -44,7 +51,8 @@ logger = logging.getLogger(__name__)
 # FLASK APP
 # ─────────────────────────────────────────────
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "10")) * 1024 * 1024
+TTA_VARIANTS = int(os.getenv("TTA_VARIANTS", "5"))
 
 # ─────────────────────────────────────────────
 # LOAD MODEL + CLASS NAMES AT STARTUP
@@ -83,6 +91,11 @@ def _validate_and_save(file) -> str:
     return file_path
 
 
+@app.errorhandler(413)
+def too_large(_):
+    return jsonify({"error": f"Image too large. Max {app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)} MB."}), 413
+
+
 # ─────────────────────────────────────────────
 # ROUTES
 # ─────────────────────────────────────────────
@@ -93,7 +106,6 @@ def index():
         "endpoints": {
             "GET  /health":              "Liveness check",
             "POST /api/crop/analyze":    "Analyze crop image",
-            "GET  /capture":             "Capture webcam frame",
         }
     })
 
@@ -110,18 +122,6 @@ def health():
         "classes": CLASS_NAMES,
         "num_classes": len(CLASS_NAMES),
     }), 200
-
-
-@app.route("/capture")
-def capture():
-    """Captures a single frame from the webcam."""
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    cap.release()
-    if not ret:
-        return jsonify({"error": "No frame captured from webcam"}), 500
-    _, buffer = cv2.imencode(".jpg", frame)
-    return Response(buffer.tobytes(), mimetype="image/jpeg")
 
 
 @app.route("/api/crop/analyze", methods=["POST"])
@@ -167,7 +167,7 @@ def analyze_crop():
         # Uses 5 augmented variants averaged for stability.
         # Falls back to single prediction if TTA fails.
         try:
-            result = predict_with_tta(model, file_path, CLASS_NAMES, n_variants=5)
+            result = predict_with_tta(model, file_path, CLASS_NAMES, n_variants=TTA_VARIANTS)
         except Exception as tta_err:
             logger.warning(f"TTA failed ({tta_err}), falling back to single prediction.")
             from inference import predict_single
@@ -196,8 +196,14 @@ def analyze_crop():
 # ENTRY POINT
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
+    host = os.getenv("ML_HOST", "0.0.0.0")
+    port = int(os.getenv("ML_PORT", "5010"))
     debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
-    port = int(os.getenv("FLASK_PORT", "5010"))
 
-    logger.info(f"Starting server on port {port} | debug={debug_mode}")
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)
+    if debug_mode:
+        logger.info(f"Starting Flask dev server on {host}:{port}")
+        app.run(host=host, port=port, debug=True)
+    else:
+        from waitress import serve
+        logger.info(f"Starting Waitress on {host}:{port}")
+        serve(app, host=host, port=port, threads=int(os.getenv("ML_THREADS", "4")))

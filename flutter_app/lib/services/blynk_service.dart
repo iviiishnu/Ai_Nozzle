@@ -1,69 +1,44 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../config.dart';
+
+/// Blynk Cloud HTTP API client. Server and token come from [AppConfig].
+/// https://docs.blynk.io/en/blynk.cloud/device-https-api
 class BlynkService {
-  final String authToken;
-  final String baseUrl = 'https://blynk.cloud/external/api';
+  static const Duration _timeout = Duration(seconds: 10);
 
-  BlynkService(this.authToken);
+  static Uri _uri(String action, String query) => Uri.parse(
+      'https://${AppConfig.blynkServer}/external/api/$action'
+      '?token=${Uri.encodeQueryComponent(AppConfig.blynkToken)}&$query');
 
-  // 🔥 SET VIRTUAL PIN
-  Future<void> setVirtualPin(int pin, dynamic value) async {
-    final url = Uri.parse('$baseUrl/update?token=$authToken&V$pin=$value');
-
-    try {
-      final response = await http.get(url);
-
-      debugPrint("Blynk UPDATE URL: $url");
-      debugPrint("Status Code: ${response.statusCode}");
-      debugPrint("Response Body: ${response.body}");
-
-      if (response.statusCode != 200) {
-        throw Exception(
-            'Failed to set virtual pin $pin. Status: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint("Error sending to Blynk: $e");
-      rethrow;
+  /// Writes a value to a virtual pin (the ESP32 receives it in BLYNK_WRITE).
+  static Future<void> setVirtualPin(int pin, Object value) async {
+    if (!AppConfig.iotConfigured) {
+      throw StateError('Blynk not configured (open Settings).');
+    }
+    final response = await http
+        .get(_uri('update', 'V$pin=${Uri.encodeQueryComponent('$value')}'))
+        .timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw Exception('Blynk update V$pin failed '
+          '(${response.statusCode}): ${response.body}');
     }
   }
 
-  // 🔥 GET VIRTUAL PIN
-  Future<int> getVirtualPin(int pin) async {
-    final url = Uri.parse('$baseUrl/get?token=$authToken&V$pin');
-
+  /// Reads the motor status pin written by the ESP32 (1 = running).
+  /// Returns null if Blynk is not configured or unreachable.
+  static Future<bool?> getMotorStatus() async {
+    if (!AppConfig.iotConfigured) return null;
     try {
-      final response = await http.get(url);
-
-      debugPrint("Blynk GET URL: $url");
-      debugPrint("Status Code: ${response.statusCode}");
-      debugPrint("Response Body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        return int.tryParse(response.body.trim()) ?? 0;
-      } else {
-        throw Exception(
-            'Failed to get virtual pin $pin. Status: ${response.statusCode}');
-      }
+      final response = await http
+          .get(_uri('get', 'V${AppConfig.motorStatusPin}'))
+          .timeout(_timeout);
+      if (response.statusCode == 200) return response.body.trim() == '1';
+      debugPrint('Blynk motor status ${response.statusCode}: ${response.body}');
     } catch (e) {
-      debugPrint("Error getting from Blynk: $e");
-      rethrow;
+      debugPrint('Blynk motor status error: $e');
     }
-  }
-
-  // 🔥 GET MOTOR STATUS (V5)
-  Future<bool> getMotorStatus() async {
-    final url = Uri.parse('$baseUrl/get?token=$authToken&V5');
-    try {
-      final response = await http.get(url);
-      debugPrint("Motor status URL: $url");
-      debugPrint("Motor status response: ${response.body}");
-      if (response.statusCode == 200) {
-        return response.body.trim() == "1";
-      }
-    } catch (e) {
-      debugPrint("Motor status error: $e");
-    }
-    return false;
+    return null;
   }
 }

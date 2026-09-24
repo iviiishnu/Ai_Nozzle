@@ -2,25 +2,24 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_app/widgets/in_app_camera_page.dart';
 import 'package:flutter_app/widgets/live_camera_page.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/api_service.dart';
+import '../config.dart';
+import '../services/analysis_service.dart';
 import '../services/blynk_service.dart';
 import '../services/tflite_service.dart';
+import 'settings_page.dart';
 import '../widgets/info_card.dart';
 import '../theme/app_theme.dart';
 
 class CropAnalyzerPage extends StatefulWidget {
   const CropAnalyzerPage({super.key});
 
-  /// Severity based on damage percentage only.
-  /// < 15 → Low, < 35 → Medium, ≥ 35 → High
-  static String getSeverity(double damagePercent) {
-    if (damagePercent < 15) return 'Low';
-    if (damagePercent < 35) return 'Medium';
-    return 'High';
-  }
+  /// Severity based on damage percentage (thresholds in AppConfig).
+  static String getSeverity(double damagePercent) =>
+      AppConfig.severityFor(damagePercent);
 
   @override
   State<CropAnalyzerPage> createState() => _CropAnalyzerPageState();
@@ -32,166 +31,91 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
   bool _isLoading = false;
   final ImagePicker picker = ImagePicker();
 
-  final BlynkService blynk = BlynkService("rXMkKMQ5NwBO1pmXM1MD1UPvW1bIL8AM");
-
-  bool motorRunning = false;
-  int runTimeLeft = 0;
-  Timer? timer;
-  static const int sprayDuration = 5; // match Python spray time seconds
-
-  // V5 motor status (real-time from Blynk)
-  bool isMotorRunning = false;
+  // Sprayer status (Blynk V5, written by the ESP32). null = unknown / not configured.
+  bool? _isMotorRunning;
+  String? _iotStatus;
   Timer? _motorStatusTimer;
+
+  bool get _useOnDeviceInference => AppConfig.useOnDevice && TfliteService.isLoaded;
 
   @override
   void initState() {
     super.initState();
-    startMotorStatusTimer();
-
-    // Poll V5 for real-time motor running status every 2 seconds
-    _motorStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      final status = await blynk.getMotorStatus();
-      if (mounted) {
-        setState(() {
-          isMotorRunning = status;
-        });
-      }
-    });
+    _startMotorPolling();
   }
 
-  void startMotorStatusTimer() {
-    timer?.cancel();
-    timer = Timer.periodic(const Duration(seconds: 1), (t) async {
-      try {
-        final int motorState = await blynk.getVirtualPin(4);
-        setState(() {
-          if (motorRunning && runTimeLeft > 0) {
-            runTimeLeft--;
-          } else if (motorState == 1 && !motorRunning) {
-            motorRunning = true;
-            runTimeLeft = sprayDuration;
-          } else if (motorState == 0) {
-            motorRunning = false;
-            runTimeLeft = 0;
-          }
-        });
-      } catch (e) {
-        // optionally handle error
-      }
+  void _startMotorPolling() {
+    _motorStatusTimer?.cancel();
+    _motorStatusTimer = null;
+    if (!AppConfig.iotConfigured) return;
+    _motorStatusTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      final status = await BlynkService.getMotorStatus();
+      if (mounted) setState(() => _isMotorRunning = status);
     });
   }
 
   @override
   void dispose() {
-    timer?.cancel();
     _motorStatusTimer?.cancel();
     super.dispose();
   }
 
-  // ── Inference mode ──────────────────────────────────────────────────────────
-  bool _useOnDeviceInference = TfliteService.isLoaded;
-
-  int? lastSentDamagePercent;
+  Future<void> _openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
+    );
+    if (!mounted) return;
+    setState(() {});
+    _startMotorPolling();
+  }
 
   Future<void> pickImage(ImageSource source) async {
-    try {
-      final XFile? pickedFile = await picker.pickImage(source: source);
-      if (pickedFile == null) {
-        setState(() => _parsedResult = null);
-        return;
-      }
-
-      setState(() {
-        _image = File(pickedFile.path);
-        _isLoading = true;
-        _parsedResult = null;
-      });
-
-      Map<String, dynamic> jsonResp;
-
-      if (_useOnDeviceInference && TfliteService.isLoaded) {
-        try {
-          final result = await TfliteService.predictFromFile(_image!);
-          final double damage = result.isUncertain
-              ? 0.0
-              : ((1.0 - result.confidence) * 80.0).clamp(5.0, 80.0);
-
-          jsonResp = {
-            'crop': result.disease,
-            'status': result.isUncertain ? 'Uncertain' : 'Diseased',
-            'disease': result.disease,
-            'confidence_percent': result.confidencePercent,
-            'damage_percent': damage,
-            'severity': result.isUncertain
-                ? 'Unknown'
-                : CropAnalyzerPage.getSeverity(damage),
-            'inference_ms': result.inferenceMs,
-            'source': 'on_device',
-            if (result.isUncertain)
-              'message':
-                  'Confidence too low (${result.confidencePercent.toStringAsFixed(1)}%). Retake with better lighting.',
-          };
-        } catch (e) {
-          debugPrint('⚠️ On-device failed → fallback to server: $e');
-          try {
-            jsonResp = await ApiService.uploadImage(_image!);
-            jsonResp['source'] = 'server_fallback';
-          } catch (serverError) {
-            debugPrint('❌ Server also failed: $serverError');
-            jsonResp = {
-              'status': 'Uncertain',
-              'message': '⚡ Running on-device AI. Server skipped.',
-              'damage_percent': 0.0,
-              'confidence_percent': 0.0,
-              'source': 'on_device',
-            };
-          }
-        }
-      } else {
-        try {
-          jsonResp = await ApiService.uploadImage(_image!);
-          jsonResp['source'] = 'server';
-        } catch (e) {
-          debugPrint('❌ Server failed: $e');
-          jsonResp = {
-            'status': 'Uncertain',
-            'message': '⚡ Running on-device AI. Server skipped.',
-            'damage_percent': 0.0,
-            'confidence_percent': 0.0,
-            'source': 'on_device',
-          };
-        }
-      }
-
-      setState(() {
-        _parsedResult = jsonResp;
-        _isLoading = false;
-      });
-
-      // ── Blynk: send damage % to V4 ───────────────────────────────────────
-      if (_parsedResult != null && _parsedResult!['damage_percent'] != null) {
-        final int currentDamage =
-            (_parsedResult!['damage_percent'] as num).toInt();
-        if (lastSentDamagePercent != currentDamage) {
-          await blynk.setVirtualPin(4, currentDamage);
-          lastSentDamagePercent = currentDamage;
-          debugPrint('Sent damage percent: $currentDamage to Blynk');
-        } else {
-          debugPrint('Damage unchanged, skipping send');
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _parsedResult = {
-          'status': 'Uncertain',
-          'message': '⚡ Something went wrong. Using offline AI.',
-          'damage_percent': 0.0,
-          'confidence_percent': 0.0,
-          'source': 'on_device',
-        };
-        _isLoading = false;
-      });
+    File? imageFile;
+    if (source == ImageSource.camera) {
+      // In-app camera: uses the OTG USB webcam, unlike the system camera
+      // app that image_picker hands off to.
+      imageFile = await Navigator.push<File>(
+        context,
+        MaterialPageRoute(builder: (_) => const InAppCameraPage()),
+      );
+    } else {
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 85,
+      );
+      if (pickedFile != null) imageFile = File(pickedFile.path);
     }
+
+    if (!mounted) return;
+    if (imageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No image captured')),
+      );
+      return;
+    }
+    await _analyzeImage(imageFile);
+  }
+
+  Future<void> _analyzeImage(File imageFile) async {
+    setState(() {
+      _image = imageFile;
+      _isLoading = true;
+      _parsedResult = null;
+      _iotStatus = null;
+    });
+
+    final result = await AnalysisService.analyze(imageFile);
+    if (!mounted) return;
+    setState(() {
+      _parsedResult = result;
+      _isLoading = false;
+    });
+
+    final iot = await AnalysisService.sendToSprayer(result);
+    if (mounted) setState(() => _iotStatus = iot);
   }
 
   /// Maps severity string to a display color.
@@ -206,19 +130,6 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
       default:
         return Colors.grey;
     }
-  }
-
-  Widget motorStatusWidget() {
-    return Text(
-      motorRunning
-          ? 'Motor ON - Running for $runTimeLeft seconds'
-          : 'Motor OFF',
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: motorRunning ? Colors.green : Colors.red,
-      ),
-    );
   }
 
   Widget _bgIcon(IconData icon, double left, double top, {double size = 48}) {
@@ -252,22 +163,27 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
                 _useOnDeviceInference ? Icons.phone_android : Icons.cloud,
                 color: Colors.white,
               ),
-              onPressed: () {
-                setState(() {
-                  _useOnDeviceInference = !_useOnDeviceInference;
-                });
+              onPressed: () async {
+                await AppConfig.setUseOnDevice(!AppConfig.useOnDevice);
+                if (!context.mounted) return;
+                setState(() {});
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       _useOnDeviceInference
                           ? '📱 On-device TFLite inference'
-                          : '☁️ Server inference',
+                          : '☁️ Server inference (tablet fallback)',
                     ),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
             ),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings, color: Colors.white),
+            onPressed: _openSettings,
           ),
         ],
       ),
@@ -379,7 +295,11 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    "${_parsedResult!['error']}\n⚡ Switching to offline AI mode",
+                                    [
+                                      _parsedResult!['error'],
+                                      if (_parsedResult!['message'] != null)
+                                        _parsedResult!['message'],
+                                    ].join('\n'),
                                     style:
                                         const TextStyle(color: Colors.red),
                                   ),
@@ -503,31 +423,29 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
                           icon: Icons.show_chart,
                         ),
 
-                        // ── Motor Status Card (V5) ─────────────────────────
+                        // ── Sprayer (Blynk) ────────────────────────────────
                         Card(
                           margin: const EdgeInsets.symmetric(vertical: 8),
                           child: ListTile(
                             leading: Icon(
-                              isMotorRunning
+                              _isMotorRunning == true
                                   ? Icons.flash_on
                                   : Icons.flash_off,
-                              color:
-                                  isMotorRunning ? Colors.green : Colors.red,
+                              color: _isMotorRunning == true
+                                  ? Colors.green
+                                  : Colors.grey,
                             ),
-                            title: const Text("Motor Status"),
+                            title: const Text("Sprayer"),
                             subtitle: Text(
-                              isMotorRunning ? "Running" : "Stopped",
-                              style: TextStyle(
-                                color: isMotorRunning
-                                    ? Colors.green
-                                    : Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              [
+                                _isMotorRunning == null
+                                    ? 'Motor status unavailable'
+                                    : (_isMotorRunning! ? 'Motor running' : 'Motor stopped'),
+                                if (_iotStatus != null) _iotStatus!,
+                              ].join(' • '),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        motorStatusWidget(),
                       ],
                     ],
                     if (_isLoading)

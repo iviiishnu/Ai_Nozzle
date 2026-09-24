@@ -1,0 +1,8 @@
+{
+  "BACKEND_URL": "http://192.168.1.20:8000",
+  "BLYNK_SERVER": "blynk.cloud",
+  "BLYNK_AUTH_TOKEN": "your-blynk-device-auth-token",
+  "CONFIDENCE_THRESHOLD": "0.50",
+  "DAMAGE_MEDIUM": "15",
+  "DAMAGE_HIGH": "35"
+}

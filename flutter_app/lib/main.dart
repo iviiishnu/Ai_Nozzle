@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'config.dart';
 import 'screens/home_screen.dart';
 import 'services/tflite_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.load();
 
   try {
     await TfliteService.loadModel();

@@ -77,7 +77,7 @@ This documents every significant change made during the major refactor. Read thi
 - **Damage threshold lowered** to 5% (was 30%) — matches the new entropy-based damage values which are lower on average than the old confidence-inversion formula.
 - **V5 motor status pin** — ESP32 now writes `1` to V5 when motor is running, `0` when stopped. Flutter reads this to show real motor status.
 - **Nozzle close sequence** — after spray duration, motor runs reverse for `REVERSE_DURATION` (1000ms) to close nozzle before stopping.
-- **WiFi credentials updated** — `ssid[] = "Karat"`, `pass[] = "karthik12"`.
+- **WiFi credentials updated** — `ssid[] = "<WIFI_SSID>"`, `pass[] = "<WIFI_PASSWORD>"`.
 - **Cooldown** still 5 seconds between sprays.
 
 ### Spring Boot Backend (`spring_backend/`)

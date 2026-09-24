@@ -1,0 +1,117 @@
+{
+  // Run from the Command Palette: "Tasks: Run Task" (Ctrl+Shift+P).
+  // Each task opens in its own terminal panel so you can watch the logs.
+  //
+  // One-time setup (see DEPLOYMENT.md):
+  //   ai_service/.env                      ← copy from .env.example (optional)
+  //   flutter_app/config/app_config.json   ← copy from app_config.example.json
+  //   ardunio/esp32_motor_control/secrets.h ← copy from secrets.example.h
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. ML Server (Python :5010)",
+      "type": "shell",
+      "command": "venv/bin/python farm_app.py",
+      "windows": { "command": "python farm_app.py" },
+      "options": { "cwd": "${workspaceFolder}/ai_service" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "group": "backend" }
+    },
+    {
+      "label": "2. Spring Backend (:8000)",
+      "type": "shell",
+      "command": "./mvnw spring-boot:run",
+      "windows": { "command": ".\\mvnw.cmd spring-boot:run" },
+      "options": { "cwd": "${workspaceFolder}/spring_backend/spring_backend_fresh/spring_backend" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "group": "backend" }
+    },
+    {
+      "label": "Start Backend (ML + Spring)",
+      "dependsOn": ["1. ML Server (Python :5010)", "2. Spring Backend (:8000)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: backend health + one leaf image",
+      "type": "shell",
+      "command": "curl -s localhost:8000/api/crop/health; echo; curl -s -F \"file=@$(ls ai_service/images/Rust/* | head -1)\" localhost:8000/api/crop/analyze; echo",
+      "windows": { "command": "curl.exe -s localhost:8000/api/crop/health; echo ''; $img = (Get-ChildItem ai_service/images/Rust | Select-Object -First 1).FullName; curl.exe -s -F \"file=@$img\" localhost:8000/api/crop/analyze" },
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "3a. ADB: pair tablet (first time)",
+      "type": "shell",
+      "command": "adb pair ${input:pairAddress} ${input:pairCode}",
+      "problemMatcher": []
+    },
+    {
+      "label": "3b. ADB: connect tablet",
+      "type": "shell",
+      "command": "adb connect ${input:connectAddress} && adb devices -l",
+      "windows": { "command": "adb connect ${input:connectAddress}; adb devices -l" },
+      "problemMatcher": []
+    },
+    {
+      "label": "4. Flutter: run on tablet",
+      "type": "shell",
+      "command": "flutter run --dart-define-from-file=config/app_config.json",
+      "options": {
+        "cwd": "${workspaceFolder}/flutter_app",
+        "env": { "ANDROID_HOME": "${env:HOME}/Android/Sdk" }
+      },
+      "windows": {
+        // Release: the debug APK (~200 MB) drops wireless ADB mid-install.
+        "command": "flutter run --release --dart-define-from-file=config/app_config.json",
+        "options": {
+          "cwd": "${workspaceFolder}/flutter_app",
+          "env": { "ANDROID_HOME": "${env:LOCALAPPDATA}\\Android\\Sdk" }
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    },
+    {
+      "label": "Flutter: build release APK",
+      "type": "shell",
+      "command": "flutter build apk --release --dart-define-from-file=config/app_config.json && ls -lh build/app/outputs/flutter-apk/app-release.apk",
+      "options": {
+        "cwd": "${workspaceFolder}/flutter_app",
+        "env": { "ANDROID_HOME": "${env:HOME}/Android/Sdk" }
+      },
+      "windows": {
+        "command": "flutter build apk --release --dart-define-from-file=config/app_config.json",
+        "options": {
+          "cwd": "${workspaceFolder}/flutter_app",
+          "env": { "ANDROID_HOME": "${env:LOCALAPPDATA}\\Android\\Sdk" }
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "5. ESP32: compile firmware",
+      "type": "shell",
+      "command": "${env:HOME}/.local/bin/arduino-cli compile --fqbn esp32:esp32:esp32 ardunio/esp32_motor_control",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "5b. ESP32: upload firmware (USB)",
+      "type": "shell",
+      "command": "${env:HOME}/.local/bin/arduino-cli compile --upload -p ${input:serialPort} --fqbn esp32:esp32:esp32 ardunio/esp32_motor_control && ${env:HOME}/.local/bin/arduino-cli monitor -p ${input:serialPort} -c baudrate=115200",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    }
+  ],
+  "inputs": [
+    { "id": "pairAddress", "type": "promptString", "description": "Pairing IP:port (from 'Pair device with pairing code')" },
+    { "id": "pairCode", "type": "promptString", "description": "6-digit pairing code" },
+    { "id": "connectAddress", "type": "promptString", "description": "IP:port from the main Wireless debugging screen" },
+    { "id": "serialPort", "type": "promptString", "description": "ESP32 serial port", "default": "/dev/ttyUSB0" }
+  ]
+}

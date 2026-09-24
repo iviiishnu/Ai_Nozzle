@@ -1,8 +1,9 @@
 from pathlib import Path
 import shutil
 
-SRC_BASE = Path(r"ai_service/dataset_split")  # use forward slashes
-DST_BASE = Path("ai_service/dataset_split_binary")
+AI_SERVICE_DIR = Path(__file__).resolve().parent.parent
+SRC_BASE = AI_SERVICE_DIR / "dataset_split"
+DST_BASE = AI_SERVICE_DIR / "dataset_split_binary"
 
 for split in ["train", "val"]:  # remove 'test' if not available
     src_split = SRC_BASE / split

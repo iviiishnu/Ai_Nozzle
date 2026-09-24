@@ -8,6 +8,7 @@ __pycache__/
 # Flutter and generated build output
 flutter_app/.dart_tool/
 flutter_app/build/
+flutter_app/android/build/
 flutter_app/.flutter-plugins
 flutter_app/.flutter-plugins-dependencies
 flutter_app/.idea/
@@ -24,3 +25,7 @@ QuickShareSetup.exe
 ai_service/models/*.h5
 *.env
 !.env.example
+# Local secrets
+ardunio/**/secrets.h
+ai_service/.env
+flutter_app/config/app_config.json

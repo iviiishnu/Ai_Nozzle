@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local build config with real server URL / Blynk token (see config/app_config.example.json)
+config/app_config.json

@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, Response
 import cv2
 
@@ -5,7 +7,7 @@ app = Flask(__name__)
 
 
 def open_camera():
-    for index in (0, 1, 2, 3):
+    for index in range(int(os.getenv("WEBCAM_MAX_INDEX", "3")) + 1):
         cap = cv2.VideoCapture(index)
         if cap.isOpened():
             ret, frame = cap.read()
@@ -29,4 +31,5 @@ def capture():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5011, debug=False)
+    app.run(host=os.getenv("WEBCAM_HOST", "0.0.0.0"),
+            port=int(os.getenv("WEBCAM_PORT", "5011")), debug=False)

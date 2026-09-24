@@ -171,10 +171,10 @@ WebClient-based alternative never used. DTO never populated. Remove both or impl
 ### ❌ Blynk auth token hardcoded in source — in THREE places
 ```dart
 // crop_analyzer_page.dart
-final BlynkService blynk = BlynkService("rXMkKMQ5NwBO1pmXM1MD1UPvW1bIL8AM");
+final BlynkService blynk = BlynkService("<BLYNK_AUTH_TOKEN>");
 
 // live_camera_page.dart
-final BlynkService blynk = BlynkService("rXMkKMQ5NwBO1pmXM1MD1UPvW1bIL8AM");
+final BlynkService blynk = BlynkService("<BLYNK_AUTH_TOKEN>");
 
 // blynk_screen.dart
 blynk = BlynkService("YOUR_BLYNK_AUTH_TOKEN");  // placeholder
@@ -334,14 +334,14 @@ If you retrain, do not add CLAHE to the training pipeline — it destabilizes tr
 
 ### ❌ WiFi credentials hardcoded in firmware
 ```cpp
-char ssid[] = "Karat";
-char pass[] = "karthik12";
+char ssid[] = "<WIFI_SSID>";
+char pass[] = "<WIFI_PASSWORD>";
 ```
 Committed to git. For a shared repo this is a real problem.
 
 ### ❌ Blynk auth token hardcoded in firmware (same as Flutter)
 ```cpp
-#define BLYNK_AUTH_TOKEN "rXMkKMQ5NwBO1pmXM1MD1UPvW1bIL8AM"
+#define BLYNK_AUTH_TOKEN "<BLYNK_AUTH_TOKEN>"
 ```
 Same token in three files. If compromised, anyone can control the motor.
 

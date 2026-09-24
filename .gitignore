@@ -1,0 +1,26 @@
+# Local Python environments and caches
+.venv/
+venv/
+ai_service/venv/
+__pycache__/
+*.py[cod]
+
+# Flutter and generated build output
+flutter_app/.dart_tool/
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.idea/
+flutter_app/android/.gradle/
+
+# IDE and local logs
+.idea/
+*.log
+
+# Runtime uploads and local secrets
+ai_service/tools/uploads/
+ai_service/uploads/
+QuickShareSetup.exe
+ai_service/models/*.h5
+*.env
+!.env.example

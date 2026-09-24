@@ -1,0 +1,102 @@
+{
+  "Apple___Apple_scab": {
+    "fertilizer": "Copper-based fungicide + NPK mix",
+    "application": "10 minutes every 7 days"
+  },
+  "Apple___Black_rot": {
+    "fertilizer": "Potassium phosphonate",
+    "application": "15 minutes every 10 days"
+  },
+  "Apple___Cedar_apple_rust": {
+    "fertilizer": "Sulfur spray + Organic compost",
+    "application": "10 minutes every 5 days"
+  },
+  "Apple___healthy": {
+    "fertilizer": "Balanced NPK (19:19:19)",
+    "application": "10 minutes every 15 days"
+  },
+  "Corn___Cercospora_leaf_spot Gray_leaf_spot": {
+    "fertilizer": "Nitrogen-rich fertilizer + Mancozeb spray",
+    "application": "10 minutes every 7 days"
+  },
+  "Corn___Common_rust": {
+    "fertilizer": "Phosphorus-rich fertilizer + Carbendazim spray",
+    "application": "10 minutes every 7 days"
+  },
+  "Corn___Northern_Leaf_Blight": {
+    "fertilizer": "Zinc + Potassium foliar spray",
+    "application": "12 minutes every 6 days"
+  },
+  "Corn___healthy": {
+    "fertilizer": "Balanced NPK + Biofertilizer",
+    "application": "10 minutes every 20 days"
+  },
+  "Grape___Black_rot": {
+    "fertilizer": "Potassium carbonate spray",
+    "application": "15 minutes every 7 days"
+  },
+  "Grape___Esca_(Black_Measles)": {
+    "fertilizer": "Trichoderma-based biofertilizer",
+    "application": "10 minutes every 12 days"
+  },
+  "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)": {
+    "fertilizer": "Copper oxychloride spray",
+    "application": "12 minutes every 10 days"
+  },
+  "Grape___healthy": {
+    "fertilizer": "Balanced micronutrient spray",
+    "application": "10 minutes every 20 days"
+  },
+  "Potato___Early_blight": {
+    "fertilizer": "Mancozeb + NPK foliar",
+    "application": "10 minutes every 6 days"
+  },
+  "Potato___Late_blight": {
+    "fertilizer": "Metalaxyl-based fungicide",
+    "application": "15 minutes every 5 days"
+  },
+  "Potato___healthy": {
+    "fertilizer": "Urea + Potash",
+    "application": "10 minutes every 15 days"
+  },
+  "Tomato___Bacterial_spot": {
+    "fertilizer": "Copper hydroxide spray",
+    "application": "12 minutes every 5 days"
+  },
+  "Tomato___Early_blight": {
+    "fertilizer": "Mancozeb spray + Potash",
+    "application": "15 minutes every 6 days"
+  },
+  "Tomato___Late_blight": {
+    "fertilizer": "Chlorothalonil spray + NPK",
+    "application": "15 minutes every 5 days"
+  },
+  "Tomato___Leaf_Mold": {
+    "fertilizer": "Sulfur spray",
+    "application": "10 minutes every 7 days"
+  },
+  "Tomato___Septoria_leaf_spot": {
+    "fertilizer": "Copper fungicide",
+    "application": "12 minutes every 6 days"
+  },
+  "Tomato___Spider_mites Two-spotted_spider_mite": {
+    "fertilizer": "Neem oil spray",
+    "application": "10 minutes every 5 days"
+  },
+  "Tomato___Target_Spot": {
+    "fertilizer": "Carbendazim spray",
+    "application": "12 minutes every 6 days"
+  },
+  "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+    "fertilizer": "Seaweed extract + Zinc",
+    "application": "10 minutes every 12 days"
+  },
+  "Tomato___Tomato_mosaic_virus": {
+    "fertilizer": "Organic compost + Boron spray",
+    "application": "10 minutes every 10 days"
+  },
+  "Tomato___healthy": {
+    "fertilizer": "Balanced NPK 20:20:20",
+    "application": "10 minutes every 20 days"
+  }
+}

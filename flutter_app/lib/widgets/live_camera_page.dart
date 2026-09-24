@@ -4,19 +4,15 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
-import 'package:http/http.dart' as http;
 
-import '../config.dart';
 import '../services/api_service.dart';
 import '../services/blynk_service.dart';
 import '../screens/crop_analyzer_page.dart';
 
 /// Live Camera Page
 /// ────────────────
-/// Primary:  UVC camera via flutter_uvc_camera (OTG webcam connected directly
-///           to the tablet over USB — Lenovo FHD Webcam, VID 17ef PID 4831).
-/// Fallback: PC webcam server (webcam.py on port 5011) polled over HTTP.
-///           Activated automatically if UVC init fails or times out.
+/// The OTG UVC camera is the only live input for this page. The PC webcam
+/// server is intentionally not used here.
 ///
 /// A frame is captured every [captureIntervalSeconds] seconds, displayed, and
 /// sent to the ML server for crop disease inference.
@@ -87,7 +83,7 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
           _startCaptureTimer();
         } else if (state == UVCCameraState.error) {
           final error = controller.getCameraErrorMsg;
-          _fallbackToPcServer(
+            _markUvcUnavailable(
               error.isEmpty ? 'UVC camera failed to open' : 'UVC: $error');
         } else if (state == UVCCameraState.closed) {
           if (_uvcReady) {
@@ -108,7 +104,7 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
             lower.contains('denied')     ||
             lower.contains('no device')  ||
             lower.contains('not found')) {
-          _fallbackToPcServer('UVC: $msg');
+          _markUvcUnavailable('UVC: $msg');
         }
       };
 
@@ -123,31 +119,31 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
           await controller.openUVCCamera();
         } catch (e) {
           debugPrint('UVC open exception: $e');
-          _fallbackToPcServer('UVC open error: $e');
+          _markUvcUnavailable('UVC open error: $e');
         }
       });
 
       // Wait up to uvcTimeoutSeconds before giving up
       await Future.delayed(const Duration(seconds: uvcTimeoutSeconds));
       if (mounted && !_uvcReady && !_uvcFailed) {
-        _fallbackToPcServer('No UVC camera responded within ${uvcTimeoutSeconds}s');
+        _markUvcUnavailable(
+          'No OTG camera responded within ${uvcTimeoutSeconds}s');
       }
     } catch (e) {
       debugPrint('UVC init exception: $e');
-      _fallbackToPcServer('UVC init error: $e');
+      _markUvcUnavailable('UVC init error: $e');
     }
   }
 
-  void _fallbackToPcServer(String reason) {
+  void _markUvcUnavailable(String reason) {
     if (_uvcFailed) return;
-    debugPrint('Falling back to PC webcam server. Reason: $reason');
+    debugPrint('OTG UVC camera unavailable. Reason: $reason');
     if (!mounted) return;
     setState(() {
       _uvcFailed = true;
       _uvcReady  = false;
-      _statusMessage = 'OTG not available — using PC webcam server';
+      _statusMessage = reason;
     });
-    _startCaptureTimer();
   }
 
   void _startCaptureTimer() {
@@ -166,8 +162,8 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
     if (mounted) setState(() => _isProcessing = true);
 
     try {
-      final Uint8List? frameBytes =
-          _uvcReady ? await _captureUvc() : await _captureFromPcServer();
+        if (!_uvcReady || _uvcController == null) return;
+        final Uint8List? frameBytes = await _captureUvc();
 
       if (frameBytes == null) return;
       if (mounted) setState(() => _lastFrameBytes = frameBytes);
@@ -202,29 +198,8 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
       if (path == null || path.isEmpty) return null;
       return await File(path).readAsBytes();
     } catch (e) {
-      debugPrint('UVC capture error: $e — falling back to PC server');
-      _fallbackToPcServer('takePicture failed: $e');
-      return null;
-    }
-  }
-
-  /// Fetch a JPEG from webcam.py on the PC.
-  Future<Uint8List?> _captureFromPcServer() async {
-    try {
-      final resp = await http
-          .get(Uri.parse('$WEBCAM_SERVER_URL/capture'))
-          .timeout(const Duration(seconds: 5));
-      if (resp.statusCode == 200) return resp.bodyBytes;
-      if (mounted) {
-        setState(() => _statusMessage =
-            'PC webcam server error ${resp.statusCode}');
-      }
-      return null;
-    } catch (e) {
-      if (mounted) {
-        setState(() => _statusMessage =
-            'Cannot reach PC webcam server.\nMake sure webcam.py is running.\n$e');
-      }
+      debugPrint('UVC capture error: $e');
+      _markUvcUnavailable('OTG capture failed: $e');
       return null;
     }
   }
@@ -233,7 +208,7 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
 
   String get _sourceLabel {
     if (_uvcReady)  return 'OTG Webcam (UVC)';
-    if (_uvcFailed) return 'PC Webcam Server';
+    if (_uvcFailed) return 'OTG Webcam unavailable';
     return 'Initialising...';
   }
 
@@ -271,7 +246,7 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
                     width: double.infinity,
                     height: double.infinity,
                   )
-                // Last captured frame (PC server mode or between UVC captures)
+                // Last captured UVC frame while the next capture is pending.
                 else if (_lastFrameBytes != null)
                   Image.memory(
                     _lastFrameBytes!,
